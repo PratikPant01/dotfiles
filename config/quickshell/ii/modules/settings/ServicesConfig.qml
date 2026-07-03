@@ -256,15 +256,52 @@ ContentPage {
         }
         
         MaterialTextArea {
+            id: cityField
+            property bool suppressSearch: false
             Layout.fillWidth: true
             placeholderText: Translation.tr("City name")
             text: Config.options.bar.weather.city
             wrapMode: TextEdit.Wrap
-            acceptsReturn: false
             onTextChanged: {
                 Config.options.bar.weather.city = text.trim();
+                if (cityField.suppressSearch)
+                    return;
+                Config.options.bar.weather.lat = 0;
+                Config.options.bar.weather.lon = 0;
+                citySearchTimer.restart();
             }
         }
+
+        Timer {
+            id: citySearchTimer
+            interval: 400
+            onTriggered: Weather.searchLocation(cityField.text)
+        }
+
+        ColumnLayout {
+            Layout.fillWidth: true
+            visible: Weather.suggestions.length > 0
+            spacing: 4
+
+            Repeater {
+                model: Weather.suggestions
+                delegate: RippleButtonWithIcon {
+                    required property var modelData
+                    Layout.fillWidth: true
+                    materialIcon: "location_on"
+                    mainText: [modelData.name, modelData.admin1, modelData.country].filter(Boolean).join(", ")
+                    onClicked: {
+                        cityField.suppressSearch = true;
+                        cityField.text = mainText;
+                        cityField.suppressSearch = false;
+                        Config.options.bar.weather.lat = modelData.latitude;
+                        Config.options.bar.weather.lon = modelData.longitude;
+                        Weather.suggestions = [];
+                    }
+                }
+            }
+        }
+
         ConfigSpinBox {
             icon: "av_timer"
             text: Translation.tr("Polling interval (m)")

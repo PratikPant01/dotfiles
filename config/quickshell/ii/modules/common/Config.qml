@@ -281,6 +281,8 @@ Singleton {
                     property bool enable: false
                     property bool enableGPS: false // gps based location
                     property string city: "Kathmandu" // City name for weather
+                    property real lat: 0 // Resolved latitude, set when a search suggestion is picked (0 = use city name)
+                    property real lon: 0 // Resolved longitude, set when a search suggestion is picked (0 = use city name)
                     property bool useUSCS: false // Instead of metric (SI) units
                     property int fetchInterval: 10 // minutes
                 }
@@ -557,7 +559,7 @@ Singleton {
                 }
 
                 property JsonObject quickSliders: JsonObject {
-                    property bool enable: false
+                    property bool enable: true
                     property bool showMic: false
                     property bool showVolume: true
                     property bool showBrightness: true

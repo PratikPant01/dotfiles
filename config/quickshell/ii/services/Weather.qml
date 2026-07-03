@@ -13,13 +13,24 @@ Singleton {
     // 10 minute
     readonly property int fetchInterval: Config.options.bar.weather.fetchInterval * 60 * 1000
     readonly property string city: Config.options.bar.weather.city
+    readonly property real lat: Config.options.bar.weather.lat
+    readonly property real lon: Config.options.bar.weather.lon
     readonly property bool useUSCS: Config.options.bar.weather.useUSCS
     property bool gpsActive: Config.options.bar.weather.enableGPS
+
+    // Location search results (Open-Meteo geocoding), consumed by the settings UI
+    property list<var> suggestions: []
 
     onUseUSCSChanged: {
         root.getData();
     }
     onCityChanged: {
+        root.getData();
+    }
+    onLatChanged: {
+        root.getData();
+    }
+    onLonChanged: {
         root.getData();
     }
 
@@ -85,8 +96,10 @@ Singleton {
 
         if (root.gpsActive && root.location.valid) {
             command += `/${root.location.lat},${root.location.long}`;
+        } else if (root.lat !== 0 || root.lon !== 0) {
+            command += `/${root.lat},${root.lon}`;
         } else {
-            command += `/${formatCityName(root.city)}`;
+            command += "/" + shQuote(formatCityName(root.city));
         }
 
         // format as json
@@ -100,6 +113,24 @@ Singleton {
 
     function formatCityName(cityName) {
         return cityName.trim().split(/\s+/).join('+');
+    }
+
+    // Single-quotes a string for safe interpolation into the bash -c command below
+    // (city names and search queries come straight from user input).
+    function shQuote(str) {
+        return "'" + String(str).replace(/'/g, `'\\''`) + "'";
+    }
+
+    // Looks up matching places for the settings UI's location search-with-suggestions field.
+    function searchLocation(query) {
+        const q = query.trim();
+        if (q.length < 2) {
+            root.suggestions = [];
+            return;
+        }
+        const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=8&language=en&format=json`;
+        searchFetcher.command[2] = "curl -s " + shQuote(url);
+        searchFetcher.running = true;
     }
 
     Component.onCompleted: {
@@ -121,6 +152,25 @@ Singleton {
                     // console.info(`[ data: ${JSON.stringify(parsedData)}`);
                 } catch (e) {
                     console.error(`[WeatherService] ${e.message}`);
+                }
+            }
+        }
+    }
+
+    Process {
+        id: searchFetcher
+        command: ["bash", "-c", ""]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                if (text.length === 0) {
+                    root.suggestions = [];
+                    return;
+                }
+                try {
+                    root.suggestions = JSON.parse(text).results ?? [];
+                } catch (e) {
+                    console.error(`[WeatherService] ${e.message}`);
+                    root.suggestions = [];
                 }
             }
         }
